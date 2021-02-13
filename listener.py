@@ -1,4 +1,5 @@
 from pymongo import MongoClient
+from tweet_utils import process_tweet
 
 import tweepy
 import json
@@ -23,10 +24,11 @@ class StreamListener(tweepy.StreamListener):
 
     def on_data(self, data):
         # load the json data
-        t = json.loads(data)
-        print(t)
+        tweet = json.loads(data)
 
-        try:
-            collection.insert_one(t)
-        except Exception as e:
-            print(e)
+        processed_tweet = process_tweet(tweet)
+
+        # print(processed_tweet)
+
+        if processed_tweet:
+            collection.insert_one(processed_tweet)
