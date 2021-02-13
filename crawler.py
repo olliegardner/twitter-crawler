@@ -1,13 +1,12 @@
 from dotenv import load_dotenv
 from listener import StreamListener
-from pymongo import MongoClient
 
 import tweepy
 import os
 import time
 
 
-def connect_to_twitter():
+def twitter_connection():
     consumer_key = os.getenv('CONSUMER_KEY')
     consumer_secret = os.getenv('CONSUMER_SECRET')
     access_token = os.getenv('ACCESS_TOKEN')
@@ -23,13 +22,6 @@ def connect_to_twitter():
         return False
 
     return auth, api
-
-
-def connect_to_mongodb():
-    client = MongoClient('localhost', 27017)  # connect to localhost MongoDB
-    database = client['webscience']  # create database called webscience
-    collection = database['tweets']  # create tweets collection
-    collection.insert_one({"x": 11})  # insert test data
 
 
 def create_stream(auth, api):
@@ -72,8 +64,7 @@ def create_stream(auth, api):
 if __name__ == '__main__':
     load_dotenv()
 
-    auth, api = connect_to_twitter()
+    auth, api = twitter_connection()
 
     if auth:
-        connect_to_mongodb()
         create_stream(auth, api)
