@@ -1,3 +1,4 @@
+pymongo==3.11.3
 python-dotenv==0.15.0
 tweepy==3.10.0
 yapf==0.30.0
