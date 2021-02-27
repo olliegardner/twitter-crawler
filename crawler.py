@@ -63,11 +63,6 @@ class StreamListener(tweepy.StreamListener):
         print('An error has occured: ' + repr(status_code))
         return False
 
-    def on_exception(self, exception):
-        # If an exception occurs, display the exception
-        print('An exception has occured: ' + str(exception))
-        return False
-
     def on_data(self, data):
         try:
             # Load the json data
