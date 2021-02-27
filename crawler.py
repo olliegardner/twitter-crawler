@@ -1,70 +1,109 @@
+from concurrent.futures import ThreadPoolExecutor
 from dotenv import load_dotenv
-from listener import StreamListener
+from pymongo import MongoClient
+from threading import Thread
+from tweet_utils import process_tweet
 
-import tweepy
+import datetime
+import json
 import os
-import time
+import tweepy
+
+# UK and Ireland locations
+locations = [-10.392627, 49.681847, 1.055039, 61.122019]
+
+# Track words to do with 6 nations rugby
+track_words = [
+    'Rugby', '6 Nations', 'Six Nations', 'Guinness Six Nations',
+    'Guinness 6 Nations', 'Murrayfield', 'BT Murrayfield', 'Twickenham',
+    'Principality Stadium', 'Aviva Stadium', 'Stade de France',
+    'Stadio Olimpico', 'Stuart Hogg', 'Finn Russell', 'Wayne Barnes', 'Scrum',
+    'Try', 'Penalty', 'Drop goal', 'Doddie Weird Cup', 'Scotland', 'Ireland',
+    'Wales', 'England', 'France', 'Italy'
+]
+
+executor = ThreadPoolExecutor()
 
 
-def twitter_connection():
-    consumer_key = os.getenv('CONSUMER_KEY')
-    consumer_secret = os.getenv('CONSUMER_SECRET')
-    access_token = os.getenv('ACCESS_TOKEN')
-    access_token_secret = os.getenv('ACCESS_TOKEN_SECRET')
+class StreamListener(tweepy.StreamListener):
+    """
+    Class provided by tweepy to access the Twitter Streaming API.
+    """
+    def __init__(self):
+        self.running = True
 
-    auth = tweepy.OAuthHandler(consumer_key, consumer_secret)
-    auth.set_access_token(access_token, access_token_secret)
+        self.api = tweepy.API(
+            auth, wait_on_rate_limit=True, wait_on_rate_limit_notify=True
+        )
 
-    api = tweepy.API(auth)
+        client = MongoClient('localhost', 27017)  # Connect to localhost MongoDB
+        database = client['webscience']  # Create database called webscience
+        self.collection = database['tweets']  # Create tweets collection
 
-    if not api:
-        print('Twitter authenitcation failed.')
+        executor.submit(self.run_for_one_hour)
+
+    def run_for_one_hour(self):
+        start = datetime.datetime.now()
+        end = start + datetime.timedelta(hours=1)
+
+        print('Twitter crawler will run until ' + str(end))
+
+        while True:
+            if datetime.datetime.now() >= end:
+                self.running = False
+                print('Twitter crawler 1 hour duraction over.')
+                return False
+
+    def on_connect(self):
+        # Called initially to connect to the Streaming API
+        print('Connected to the Twitter streaming API.')
+
+    def on_error(self, status_code):
+        # If an error occurs, display the status code
+        print('An error has occured: ' + repr(status_code))
         return False
 
-    return auth, api
+    def on_exception(self, exception):
+        # If an exception occurs, display the exception
+        print('An exception has occured: ' + str(exception))
+        return False
 
+    def on_data(self, data):
+        try:
+            # Load the json data
+            tweet = json.loads(data)
 
-def create_stream(auth, api):
-    locations = [-10.392627, 49.681847, 1.055039, 61.122019]  # UK and Ireland
+            processed_tweet = process_tweet(tweet)
 
-    words = [
-        'Rugby', '6 Nations', 'Six Nations', 'Guinness Six Nations',
-        'Guinness 6 Nations', 'Murrayfield', 'BT Murrayfield', 'Twickenham',
-        'Principality Stadium', 'Aviva Stadium', 'Stade de France',
-        'Stadio Olimpico', 'Stuart Hogg', 'Finn Russell', 'Wayne Barnes',
-        'Scrum', 'Try', 'Penalty', 'Drop goal', 'Doddie Weird Cup', 'Scotland',
-        'Ireland', 'Wales', 'England', 'France', 'Italy'
-    ]
+            if processed_tweet:
+                self.collection.insert_one(processed_tweet)
+        except KeyboardInterrupt:
+            return False
 
-    listener = StreamListener(api=tweepy.API(wait_on_rate_limit=True))
-    streamer = tweepy.Stream(auth=auth, listener=listener)
-    streamer.filter(
-        locations=locations, track=words, languages=['en'], is_async=True
-    )
-
-    results = True
-    counter = 0
-    geo_code = '55.8554403,-4.3024977,50km'  # Glasgow geo code with 50km radius
-
-    while results:
-        if counter < 180:  # number of requests allowed for Twitter
-            try:
-                results = api.search(
-                    geocode=geo_code, count=100, lang="en", max_id=None
-                )
-            except Exception as e:
-                print(e)
-
-            counter += 1
-        else:
-            # sleep for 15 minutes to meet Twitter rate limit
-            time.sleep(15 * 60)
+        return self.running
 
 
 if __name__ == '__main__':
     load_dotenv()
 
-    auth, api = twitter_connection()
+    auth = tweepy.OAuthHandler(
+        os.getenv('CONSUMER_KEY'), os.getenv('CONSUMER_SECRET')
+    )
+    auth.set_access_token(
+        os.getenv('ACCESS_TOKEN'), os.getenv('ACCESS_TOKEN_SECRET')
+    )
 
-    if auth:
-        create_stream(auth, api)
+    try:
+        listener = StreamListener()
+
+        stream = tweepy.Stream(
+            auth=auth, listener=listener, tweet_mode='extended'
+        )
+        stream.filter(
+            locations=locations,
+            track=track_words,
+            languages=['en'],
+            is_async=True
+        )
+    except KeyboardInterrupt:
+        print('Stopping Twitter crawler. Please wait...')
