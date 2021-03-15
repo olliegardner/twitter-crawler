@@ -18,11 +18,13 @@ track_words = [
     'Guinness 6 Nations', 'Murrayfield', 'BT Murrayfield', 'Twickenham',
     'Principality Stadium', 'Aviva Stadium', 'Stade de France',
     'Stadio Olimpico', 'Stuart Hogg', 'Finn Russell', 'Wayne Barnes', 'Scrum',
-    'Try', 'Penalty', 'Drop goal', 'Doddie Weird Cup', 'Scotland', 'Ireland',
+    'Try', 'Penalty', 'Drop goal', 'Doddie Weir Cup', 'Scotland', 'Ireland',
     'Wales', 'England', 'France', 'Italy'
 ]
 
 executor = ThreadPoolExecutor()
+
+# Data collected on 27th February 2021 for 1 hour between 15:04 and 16:04 during the Italy vs Ireland 6 Nations rugby match.
 
 
 class StreamListener(tweepy.StreamListener):
@@ -51,7 +53,7 @@ class StreamListener(tweepy.StreamListener):
         while True:
             if datetime.datetime.now() >= end:
                 self.running = False
-                print('Twitter crawler 1 hour duraction over.')
+                print('Twitter crawler finished scraping.')
                 return False
 
     def on_connect(self):
