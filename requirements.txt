@@ -20,4 +20,5 @@ sklearn==0.0
 threadpoolctl==2.1.0
 tweepy==3.10.0
 urllib3==1.26.3
+wget==3.2
 yapf==0.30.0

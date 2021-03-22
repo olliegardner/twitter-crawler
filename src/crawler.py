@@ -24,27 +24,24 @@ track_words = [
 
 executor = ThreadPoolExecutor()
 
-# Data collected on 27th February 2021 for 1 hour between 15:04 and 16:04 during the Italy vs Ireland 6 Nations rugby match.
-
 
 class StreamListener(tweepy.StreamListener):
     """
-    Class provided by tweepy to access the Twitter Streaming API.
+    Class provided by Tweepy to access the Twitter Streaming API.
     """
     def __init__(self):
         self.running = True
 
-        self.api = tweepy.API(
-            auth, wait_on_rate_limit=True, wait_on_rate_limit_notify=True
-        )
+        # Connect to localhost MongoDB
+        client = MongoClient('localhost', 27017)
+        database = client['webscience']
+        self.collection = database['streamer']
 
-        client = MongoClient('localhost', 27017)  # Connect to localhost MongoDB
-        database = client['webscience']  # Create database called webscience
-        self.collection = database['tweets']  # Create tweets collection
-
+        # Execute in new thread
         executor.submit(self.run_for_one_hour)
 
     def run_for_one_hour(self):
+        # Run for 1 hour from now
         start = datetime.datetime.now()
         end = start + datetime.timedelta(hours=1)
 
@@ -52,6 +49,7 @@ class StreamListener(tweepy.StreamListener):
 
         while True:
             if datetime.datetime.now() >= end:
+                # Set running to false after running for 1 hour
                 self.running = False
                 print('Twitter crawler finished scraping.')
                 return False
@@ -69,10 +67,11 @@ class StreamListener(tweepy.StreamListener):
         try:
             # Load the json data
             tweet = json.loads(data)
-
-            processed_tweet = process_tweet(tweet)
+            # Convert Tweet to desired format
+            processed_tweet = process_tweet(tweet, 'text')
 
             if processed_tweet:
+                # Add tweet to database collection
                 self.collection.insert_one(processed_tweet)
         except KeyboardInterrupt:
             return False
@@ -81,6 +80,7 @@ class StreamListener(tweepy.StreamListener):
 
 
 if __name__ == '__main__':
+    # L
     load_dotenv()
 
     auth = tweepy.OAuthHandler(
@@ -91,11 +91,13 @@ if __name__ == '__main__':
     )
 
     try:
+        # Call the Streaming API
         listener = StreamListener()
 
         stream = tweepy.Stream(
             auth=auth, listener=listener, tweet_mode='extended'
         )
+        # Filter the stream based on track words and UK location
         stream.filter(
             locations=locations,
             track=track_words,
@@ -103,4 +105,5 @@ if __name__ == '__main__':
             is_async=True
         )
     except KeyboardInterrupt:
+        # Stop crawler if keyboard interrupt
         print('Stopping Twitter crawler. Please wait...')
